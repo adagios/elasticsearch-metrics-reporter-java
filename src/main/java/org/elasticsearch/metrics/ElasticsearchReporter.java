@@ -221,6 +221,7 @@ public class ElasticsearchReporter extends ScheduledReporter {
     private final String index;
     private final int bulkSize;
     private final int timeout;
+    private final Map<String, Object> additionalFields;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ObjectWriter writer;
     private MetricFilter percolationFilter;
@@ -239,6 +240,7 @@ public class ElasticsearchReporter extends ScheduledReporter {
         this.clock = clock;
         this.prefix = prefix;
         this.timeout = timeout;
+        this.additionalFields = additionalFields;
         if (indexDateFormat != null && indexDateFormat.length() > 0) {
             this.indexDateFormat = new SimpleDateFormat(indexDateFormat);
         }
@@ -485,6 +487,12 @@ public class ElasticsearchReporter extends ScheduledReporter {
                 json.writeObjectField("type", "string");
                 json.writeObjectField("index", "not_analyzed");
                 json.writeEndObject();
+                for (String key : additionalFields.keySet()) {
+                    json.writeObjectFieldStart(key);
+                    json.writeObjectField("type", "string");
+                    json.writeObjectField("index", "not_analyzed");
+                    json.writeEndObject();
+                }
                 json.writeEndObject();
                 json.writeEndObject();
 
