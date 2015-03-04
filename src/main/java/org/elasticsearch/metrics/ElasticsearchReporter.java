@@ -65,6 +65,7 @@ public class ElasticsearchReporter extends ScheduledReporter {
         private int timeout = 1000;
         private String timestampFieldname = "@timestamp";
         private Map<String, Object> additionalFields;
+        private NamePartsExtractor[] namePartsExtractors;
 
         private Builder(MetricRegistry registry) {
             this.registry = registry;
@@ -194,6 +195,16 @@ public class ElasticsearchReporter extends ScheduledReporter {
             return this;
         }
 
+        /**
+         * NamePartsExtractors to be used to enrich the indexed metrics
+         * @param namePartsExtractors
+         * @return
+         */
+        public Builder namePartsExtractors(NamePartsExtractor... namePartsExtractors) {
+            this.namePartsExtractors = namePartsExtractors;
+            return this;
+        }
+
         public ElasticsearchReporter build() throws IOException {
             return new ElasticsearchReporter(registry,
                     hosts,
@@ -209,7 +220,8 @@ public class ElasticsearchReporter extends ScheduledReporter {
                     percolationFilter,
                     percolationNotifier,
                     timestampFieldname,
-                    additionalFields);
+                    additionalFields,
+                    namePartsExtractors);
         }
     }
 
@@ -232,7 +244,8 @@ public class ElasticsearchReporter extends ScheduledReporter {
 
     public ElasticsearchReporter(MetricRegistry registry, String[] hosts, int timeout,
                                  String index, String indexDateFormat, int bulkSize, Clock clock, String prefix, TimeUnit rateUnit, TimeUnit durationUnit,
-                                 MetricFilter filter, MetricFilter percolationFilter, Notifier percolationNotifier, String timestampFieldname, Map<String, Object> additionalFields) throws MalformedURLException {
+                                 MetricFilter filter, MetricFilter percolationFilter, Notifier percolationNotifier, String timestampFieldname,
+                                 Map<String, Object> additionalFields, NamePartsExtractor[] namePartsExtractors) throws MalformedURLException {
         super(registry, "elasticsearch-reporter", filter, rateUnit, durationUnit);
         this.hosts = hosts;
         this.index = index;
@@ -258,7 +271,7 @@ public class ElasticsearchReporter extends ScheduledReporter {
         // auto closing means, that the objectmapper is closing after the first write call, which does not work for bulk requests
         objectMapper.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         objectMapper.configure(JsonGenerator.Feature.AUTO_CLOSE_TARGET, false);
-        objectMapper.registerModule(new MetricsElasticsearchModule(rateUnit, durationUnit, timestampFieldname, additionalFields));
+        objectMapper.registerModule(new MetricsElasticsearchModule(rateUnit, durationUnit, timestampFieldname, additionalFields, namePartsExtractors));
         writer = objectMapper.writer();
         checkForIndexTemplate();
     }
