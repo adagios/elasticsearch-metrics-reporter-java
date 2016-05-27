@@ -56,7 +56,7 @@ public class ElasticsearchReporter extends ScheduledReporter {
         private TimeUnit rateUnit;
         private TimeUnit durationUnit;
         private MetricFilter filter;
-        private String[] hosts = new String[]{ "localhost:9200" };
+        private String[] hosts = new String[]{"localhost:9200"};
         private String index = "metrics";
         private String indexDateFormat = "yyyy-MM";
         private int bulkSize = 2500;
@@ -119,11 +119,11 @@ public class ElasticsearchReporter extends ScheduledReporter {
         /**
          * Configure an array of hosts to send data to.
          * Note: Data is always sent to only one host, but this makes sure, that even if a part of your elasticsearch cluster
-         *       is not running, reporting still happens
+         * is not running, reporting still happens
          * A host must be in the format hostname:port
          * The port must be the HTTP port of your elasticsearch instance
          */
-        public Builder hosts(String ... hosts) {
+        public Builder hosts(String... hosts) {
             this.hosts = hosts;
             return this;
         }
@@ -187,6 +187,7 @@ public class ElasticsearchReporter extends ScheduledReporter {
 
         /**
          * Additional fields to be included for each metric
+         *
          * @param additionalFields
          * @return
          */
@@ -207,21 +208,21 @@ public class ElasticsearchReporter extends ScheduledReporter {
 
         public ElasticsearchReporter build() throws IOException {
             return new ElasticsearchReporter(registry,
-                    hosts,
-                    timeout,
-                    index,
-                    indexDateFormat,
-                    bulkSize,
-                    clock,
-                    prefix,
-                    rateUnit,
-                    durationUnit,
-                    filter,
-                    percolationFilter,
-                    percolationNotifier,
-                    timestampFieldname,
-                    additionalFields,
-                    namePartsExtractors);
+                                             hosts,
+                                             timeout,
+                                             index,
+                                             indexDateFormat,
+                                             bulkSize,
+                                             clock,
+                                             prefix,
+                                             rateUnit,
+                                             durationUnit,
+                                             filter,
+                                             percolationFilter,
+                                             percolationNotifier,
+                                             timestampFieldname,
+                                             additionalFields,
+                                             namePartsExtractors);
         }
     }
 
@@ -241,6 +242,9 @@ public class ElasticsearchReporter extends ScheduledReporter {
     private String currentIndexName;
     private SimpleDateFormat indexDateFormat = null;
     private boolean checkedForIndexTemplate = false;
+
+    private static final int ACCEPTABLE_FAILURES = 10;
+    private int consecutiveFailures = 0;
 
     public ElasticsearchReporter(MetricRegistry registry, String[] hosts, int timeout,
                                  String index, String indexDateFormat, int bulkSize, Clock clock, String prefix, TimeUnit rateUnit, TimeUnit durationUnit,
@@ -302,7 +306,8 @@ public class ElasticsearchReporter extends ScheduledReporter {
         try {
             HttpURLConnection connection = openConnection("/_bulk", "POST");
             if (connection == null) {
-                LOGGER.error("Could not connect to any configured elasticsearch instances: {}", Arrays.asList(hosts));
+                if(consecutiveFailures >= ACCEPTABLE_FAILURES)
+                    LOGGER.error("Could not connect to any configured elasticsearch instances: {}", Arrays.asList(hosts));
                 return;
             }
 
@@ -352,7 +357,7 @@ public class ElasticsearchReporter extends ScheduledReporter {
                     }
                 }
             }
-        // catch the exception to make sure we do not interrupt the live application
+            // catch the exception to make sure we do not interrupt the live application
         } catch (IOException e) {
             LOGGER.error("Couldnt report to elasticsearch server", e);
         }
@@ -362,7 +367,8 @@ public class ElasticsearchReporter extends ScheduledReporter {
      * Execute a percolation request for the specified metric
      */
     private List<String> getPercolationMatches(JsonMetric jsonMetric) throws IOException {
-        HttpURLConnection connection = openConnection("/" + currentIndexName + "/" + jsonMetric.type() + "/_percolate", "POST");
+        HttpURLConnection connection =
+            openConnection("/" + currentIndexName + "/" + jsonMetric.type() + "/_percolate", "POST");
         if (connection == null) {
             LOGGER.error("Could not connect to any configured elasticsearch instances for percolation: {}", Arrays.asList(hosts));
             return Collections.EMPTY_LIST;
@@ -448,8 +454,8 @@ public class ElasticsearchReporter extends ScheduledReporter {
     private HttpURLConnection openConnection(String uri, String method) {
         for (String host : hosts) {
             try {
-                URL templateUrl = new URL("http://" + host  + uri);
-                HttpURLConnection connection = ( HttpURLConnection ) templateUrl.openConnection();
+                URL templateUrl = new URL("http://" + host + uri);
+                HttpURLConnection connection = (HttpURLConnection) templateUrl.openConnection();
                 connection.setRequestMethod(method);
                 connection.setConnectTimeout(timeout);
                 connection.setUseCaches(false);
@@ -458,9 +464,17 @@ public class ElasticsearchReporter extends ScheduledReporter {
                 }
                 connection.connect();
 
+                consecutiveFailures = 0;
+
                 return connection;
+
             } catch (IOException e) {
-                LOGGER.error("Error connecting to {}: {}", host, e);
+                consecutiveFailures++;
+                if (consecutiveFailures >= ACCEPTABLE_FAILURES) {
+                    LOGGER.error("Error connecting to {}: {}", host, e);
+                } else {
+                    LOGGER.warn("Error connecting to {}: {}", host, e);
+                }
             }
         }
 
@@ -473,9 +487,13 @@ public class ElasticsearchReporter extends ScheduledReporter {
      */
     private void checkForIndexTemplate() {
         try {
-            HttpURLConnection connection = openConnection( "/_template/metrics_template", "HEAD");
+            HttpURLConnection connection = openConnection("/_template/metrics_template", "HEAD");
             if (connection == null) {
-                LOGGER.error("Could not connect to any configured elasticsearch instances: {}", Arrays.asList(hosts));
+                if (consecutiveFailures >= ACCEPTABLE_FAILURES) {
+                    LOGGER.error("Could not connect to any configured elasticsearch instances: {}", Arrays.asList(hosts));
+                } else {
+                    LOGGER.warn("Could not connect to any configured elasticsearch instances: {}", Arrays.asList(hosts));
+                }
                 return;
             }
             connection.disconnect();
@@ -485,7 +503,7 @@ public class ElasticsearchReporter extends ScheduledReporter {
             // nothing there, lets create it
             if (isTemplateMissing) {
                 LOGGER.debug("No metrics template found in elasticsearch. Adding...");
-                HttpURLConnection putTemplateConnection = openConnection( "/_template/metrics_template", "PUT");
+                HttpURLConnection putTemplateConnection = openConnection("/_template/metrics_template", "PUT");
                 JsonGenerator json = new JsonFactory().createGenerator(putTemplateConnection.getOutputStream());
                 json.writeStartObject();
                 json.writeStringField("template", index + "*");
