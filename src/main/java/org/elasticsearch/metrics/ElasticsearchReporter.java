@@ -524,6 +524,9 @@ public class ElasticsearchReporter extends ScheduledReporter {
                     json.writeObjectField("index", "not_analyzed");
                     json.writeEndObject();
                 }
+                json.writeObjectFieldStart("value");
+                json.writeObjectField("type", "double");
+                json.writeEndObject();
                 json.writeEndObject();
                 json.writeEndObject();
 
