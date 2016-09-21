@@ -5,7 +5,7 @@
     
     <groupId>org.elasticsearch</groupId>
     <artifactId>metrics-elasticsearch-reporter</artifactId>
-    <version>2.1-COB-0118657</version>
+    <version>2.1-COB-cfce4c0</version>
 
     <properties>
         <lucene.version>4.10.2</lucene.version>
