@@ -67,6 +67,8 @@ public class ElasticsearchReporter extends ScheduledReporter {
         private Map<String, Object> additionalFields;
         private NamePartsExtractor[] namePartsExtractors;
 
+        private Map<String, String> requestProperties;
+
         private Builder(MetricRegistry registry) {
             this.registry = registry;
             this.clock = Clock.defaultClock();
@@ -206,6 +208,12 @@ public class ElasticsearchReporter extends ScheduledReporter {
             return this;
         }
 
+
+        public Builder requestProperties(Map<String, String> requestProperties){
+            this.requestProperties = requestProperties;
+            return this;
+        }
+
         public ElasticsearchReporter build() throws IOException {
             return new ElasticsearchReporter(registry,
                                              hosts,
@@ -222,7 +230,8 @@ public class ElasticsearchReporter extends ScheduledReporter {
                                              percolationNotifier,
                                              timestampFieldname,
                                              additionalFields,
-                                             namePartsExtractors);
+                                             namePartsExtractors,
+                                             requestProperties);
         }
     }
 
@@ -242,6 +251,7 @@ public class ElasticsearchReporter extends ScheduledReporter {
     private String currentIndexName;
     private SimpleDateFormat indexDateFormat = null;
     private boolean checkedForIndexTemplate = false;
+    private Map<String, String> requestProperties;
 
     private static final int ACCEPTABLE_FAILURES = 10;
     private int consecutiveFailures = 0;
@@ -249,7 +259,8 @@ public class ElasticsearchReporter extends ScheduledReporter {
     public ElasticsearchReporter(MetricRegistry registry, String[] hosts, int timeout,
                                  String index, String indexDateFormat, int bulkSize, Clock clock, String prefix, TimeUnit rateUnit, TimeUnit durationUnit,
                                  MetricFilter filter, MetricFilter percolationFilter, Notifier percolationNotifier, String timestampFieldname,
-                                 Map<String, Object> additionalFields, NamePartsExtractor[] namePartsExtractors) throws MalformedURLException {
+                                 Map<String, Object> additionalFields, NamePartsExtractor[] namePartsExtractors,
+                                 Map<String, String> requestProperties) throws MalformedURLException {
         super(registry, "elasticsearch-reporter", filter, rateUnit, durationUnit);
         this.hosts = hosts;
         this.index = index;
@@ -258,6 +269,7 @@ public class ElasticsearchReporter extends ScheduledReporter {
         this.prefix = prefix;
         this.timeout = timeout;
         this.additionalFields = additionalFields;
+        this.requestProperties = requestProperties;
         if (indexDateFormat != null && indexDateFormat.length() > 0) {
             this.indexDateFormat = new SimpleDateFormat(indexDateFormat);
         }
@@ -462,6 +474,10 @@ public class ElasticsearchReporter extends ScheduledReporter {
                 if (method.equalsIgnoreCase("POST") || method.equalsIgnoreCase("PUT")) {
                     connection.setDoOutput(true);
                 }
+                if (requestProperties != null) for (Map.Entry<String, String> prop : requestProperties.entrySet()) {
+                    connection.setRequestProperty(prop.getKey(), prop.getValue());
+                }
+
                 connection.connect();
 
                 consecutiveFailures = 0;
